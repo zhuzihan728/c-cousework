@@ -10,13 +10,6 @@
 #define SAVE 4
 #define QUIT 5
 
-#define THISWEEK 1
-#define THISMONTH 2
-#define ALL 3
-
-#define BY_IMPORTANCE 1
-#define BY_URGENCY 2
-
 #define MAXLINELENGTH 100
 #define EVENT_NUMBER 1000
 
@@ -47,6 +40,26 @@ void list_importance(struct event**, int);
 void list_urgency(struct event**, int);
 void listevents(void);
 void savediary(void);
+int leap_feb(int, int);
+
+struct event *createEvent(char* name, int day, int month, int year, int cycle, int importance) 
+{
+    struct event *event = calloc(sizeof(struct event),1);
+    event->name = calloc(sizeof(char), strlen(name) + 1);
+    strcpy(event->name,name);
+    
+    event->day = day;
+    
+    event->month = month;
+    
+    event->year = year;
+    
+    event->cycle = cycle;
+    
+    event->importance = importance;
+    return event;
+}
+
 
 
 void display()
@@ -67,35 +80,51 @@ void go()
     while(true)
     {
         display();
+        char a[2];
         int option;
-        scanf("%d", &option);
-        if (option == QUIT)
+        scanf("%s",a);
+        if (sscanf(a,"%d",&option))
         {
-            break;
-        }
-        else
-        {
-            if (option == 0) //reset the diary: clear the event file amd the event_list array
+            if (option == QUIT)
             {
-                FILE *clearFile = fopen("event","w");
-                fclose(clearFile);
-                memset(event_list, 0, sizeof(struct event*)*EVENT_NUMBER); 
-
+                printf("Would you like to save your edits? (y/n)\n");
+                char a[2];
+                scanf("%s",a);
+                if(a[0] =='y')
+                {
+                    savediary();
+                    break;
+                }
+                else
+                {
+                    break;
+                }
             }
             else
             {
-                do_option(option);
-                printf("--------------------------------\n"); // look nicer
+                if (option == 0) //reset the diary: clear the event file amd the event_list array
+                {
+                    FILE *clearFile = fopen("event","w");
+                    fclose(clearFile);
+                    memset(event_list, 0, sizeof(struct event*)*EVENT_NUMBER); 
+
+                }
+                else
+                {
+                    do_option(option);
+                    printf("--------------------------------\n"); // look nicer
+                }
             }
-            
-           
+        
         }
+        else
+        {
+            printf("\nSorry - don't recognise that option, try again\n");
+        }
+       
     }
     
 }
-
-
-
 
 
 void do_option(int option)
@@ -163,99 +192,65 @@ void removeNewLine(char *buffer) //remove '\n' from the stdin to keep the displa
     }
 }
 
-struct event *createEvent(char* name, int day, int month, int year, int cycle, int importance) 
-{
-    struct event *event = calloc(sizeof(struct event),1);
-    event->name = calloc(sizeof(char), strlen(name) + 1);
-    strcpy(event->name,name);
-    
-    event->day = day;
-    
-    event->month = month;
-    
-    event->year = year;
-    
-    event->cycle = cycle;
-    
-    event->importance = importance;
-    return event;
-}
 
 void day_increment(int* dd, int* mm, int* yy, int increment) // return a new date based on a given date and an increment, this is used to record recurring events
 {
     int day = *dd;
-    int month = *mm;
+    int m = *mm;
     int year = *yy;
     int next = day + increment;
-    int leap;
     int month_lenth[13] = {29,31,28,31,30,31,30,31,31,30,31,30,31};
-    int m = month;
-    if (year%4 == 0)
-    {
-        leap = 0;
-    }
-    else
-    {
-        leap = 1;
-    }
-    if (m==2)
-    {
-        m=m*leap;
-    }
-
     
-    while (next > month_lenth[m])
+    while (next > month_lenth[leap_feb(m,year)])
     {
-        next = next - month_lenth[m];
-        month++;
-        m = month;
+        next = next - month_lenth[leap_feb(m,year)];
+        m++;
         if(m==13)
         {
             year++;
-        }
-        while(m>12)
-        {
             m=m-12;
         }
-        if (year%4 == 0) // a leap year, when there are 29 days in Feb.
+    }
+    *dd = next;
+    *mm = m;
+    *yy = year;   
+}
+
+int leap_feb(int m, int year)
+{
+    if (m!=2)
+    {
+        return m;
+    }
+    else
+    {
+        int leap = 1; 
+        if (year%4 == 0)
         {
             leap = 0;
         }
-        else
-        {
-            leap = 1;
-        }
-        if (m==2)
-        {
-            m=m*leap;
-        }
+        m=m*leap;
+        return m;
     }
-    while (month > 12)
-    {
-        month = month-12;
-    }
-    
-    *dd = next;
-    *mm = month;
-    *yy = year;   
+
 }
+
 
 void addevent()
 {
     printf("\nAdd a new event\n");
     int index = -1;
-    int max;
     while(event_list[++index] != NULL);
     if (index > EVENT_NUMBER-2)
     {
         printf("Sorry, the diary is full\n");
         return;
     }
-    char name[100];
+    char name[MAXLINELENGTH];
     char idk[2];
     printf("Enter the event name: ");
     fgets(idk,2,stdin);
-    fgets(name,100,stdin);
+    fgets(name,MAXLINELENGTH-1,stdin);
     removeNewLine(name);
     int day, month, year, cycle, period, importance;
     printf("Enter the date of the event (in the form: DD MM YYYY): ");
@@ -307,14 +302,14 @@ void addevent()
             index++;
             
         }
-        event_list[index+1] = NULL;
+        event_list[index] = NULL;
         
     }
     
     
 }
 
-int cmp_w_now(int day, int month, int year, int len) //this function compares a given date with the current date, return 0 if the given date is a futurn date, return 1 if it is a past date
+int cmp_w_now(int day, int month, int year, int len) //this function compares 2 dates, the first date is from the input, the second date is current date plus 'len' days.
 {
     time_t timep;
     struct tm *p;
@@ -447,8 +442,6 @@ void list_importance(struct event** event,int len) // function of bubble sort by
             }
         }
     }
-
-
 }
 
 void list_urgency(struct event** event,int len) // function of bubble sort by urgency
@@ -471,11 +464,11 @@ void list_urgency(struct event** event,int len) // function of bubble sort by ur
 void searchevent()
 {
     printf("\n\nSearch for an event\n");
-    char name[100];
+    char name[MAXLINELENGTH];
     char idk[2];
     printf("Enter a key word: ");
     fgets(idk,2,stdin);
-    fgets(name,100,stdin);
+    fgets(name,MAXLINELENGTH-1,stdin);
     removeNewLine(name);
     int index = 0;
     printf("Relevant events:\n");
@@ -493,7 +486,6 @@ void searchevent()
 void savediary() // event file will be refreshed
 {
     printf("\nDiary saved\n");
-
     FILE *clearFile = fopen("event","w");
     fclose(clearFile);
     FILE *outputFile = fopen("event","w");
@@ -521,5 +513,3 @@ int main(void)
     
     return 0;
 }
-
-
